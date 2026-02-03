@@ -59,11 +59,11 @@ namespace NMS_PotentialDetector.ViewModels
             {
                 try
                 {
-                    using var bitmap = _captureService.Capture(CaptureArea.ToRect()); 
-                    using var processed = _ocrService.Preprocess(bitmap); // Новый: для preview
-                    UpdatePreview(bitmap); // Обновляем preview
+                    using var bitmap = _captureService.Capture(CaptureArea.ToRect());
+                    using var processed = _ocrService.Preprocess(bitmap); // Prep для OCR и preview
+                    UpdatePreview(processed); // Изменено: Показываем processed (debug визуально)
 
-                    var text = _ocrService.Recognize(bitmap);
+                    var text = _ocrService.Recognize(bitmap); // Уже с prep внутри Recognize
                     Debug.WriteLine($"{DateTime.Now.Second}: {text}");
                     if (text == "S")
                     {
@@ -71,7 +71,7 @@ namespace NMS_PotentialDetector.ViewModels
                         Status = $"S обнаружен! ({DateTime.Now:HH:mm:ss})";
                     }
 
-                    await Task.Delay(500, cancellationToken); // 2 FPS — баланс CPU/реакция
+                    await Task.Delay(500, cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -90,7 +90,7 @@ namespace NMS_PotentialDetector.ViewModels
 
         private void SaveForDebug(Bitmap bitmap, string suffix = "")
         {
-            bitmap.Save($"debug_{DateTime.Now:yyyyMMdd_HHmmss}{suffix}.png", ImageFormat.Png);
+            bitmap.Save($"debug/{DateTime.Now:yyyyMMdd_HHmmss}{suffix}.png", ImageFormat.Png);
         }
 
         public void Dispose() => _ocrService.Dispose();
