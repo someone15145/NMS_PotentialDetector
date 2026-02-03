@@ -1,7 +1,5 @@
-﻿using System;
-using System.Drawing; // Для Bitmap, Color, Graphics
-using System.Drawing.Imaging; // Для ColorMatrix, ImageAttributes, ImageFormat
-using System.IO; // Для MemoryStream (если TIFF)
+﻿using System.Drawing; // Для Bitmap, Color, Graphics, Rectangle
+using System.Drawing.Imaging; // Для ColorMatrix, ImageAttributes, GraphicsUnit
 using Tesseract; // Для TesseractEngine, Pix, EngineMode
 
 namespace NMS_PotentialDetector.Services
@@ -13,22 +11,21 @@ namespace NMS_PotentialDetector.Services
         public OcrService()
         {
             _engine = new TesseractEngine("./tessdata", "eng", EngineMode.Default);
-            _engine.SetVariable("tessedit_char_whitelist", "SABC"); // Ограничение для скорости/точности
-            _engine.SetVariable("tessedit_pageseg_mode", "10"); // Изменено: PSM_SINGLE_CHAR для одиночных символов
+            //_engine.SetVariable("tessedit_char_whitelist", "SABC");
+            _engine.SetVariable("tessedit_pageseg_mode", "10"); // Single char
         }
 
         public string Recognize(Bitmap bitmap)
         {
-            using var processed = Preprocess(bitmap); // Интеграция: всегда prep перед OCR
-            using var img = PixConverter.ToPix(processed); // Изменено: Прямой ToPix (эффективнее TIFF)
+            using var processed = Preprocess(bitmap);
+            using var img = PixConverter.ToPix(processed);
             using var page = _engine.Process(img);
             return page.GetText().Trim().ToUpper();
         }
 
-        // Preprocess: Обработка для HUD (grayscale + threshold + invert)
         public Bitmap Preprocess(Bitmap original)
         {
-            // Шаг 1: Grayscale — фокус на яркости (ColorMatrix для скорости)
+            // Шаг 1: Grayscale (без изменений)
             var grayscale = new Bitmap(original.Width, original.Height);
             using (var g = Graphics.FromImage(grayscale))
             {
@@ -45,19 +42,19 @@ namespace NMS_PotentialDetector.Services
                 g.DrawImage(original, new Rectangle(0, 0, original.Width, original.Height), 0, 0, original.Width, original.Height, GraphicsUnit.Pixel, attributes);
             }
 
-            // Шаг 2: Threshold — бинаризация (подгони под NMS: светлый текст)
-            var threshold = 120; // Снижено: 120 для дебаг-картинки (экспериментируй 80-150)
+            // Шаг 2: Threshold (снижаем до 100 для твоей картинки — светлая "S")
+            var threshold = 100; // Подгони: 80-120 для NMS glow
             for (int y = 0; y < grayscale.Height; y++)
             {
                 for (int x = 0; x < grayscale.Width; x++)
                 {
                     var pixel = grayscale.GetPixel(x, y);
-                    int brightness = pixel.R; // Grayscale: R=G=B
+                    int brightness = pixel.R;
                     grayscale.SetPixel(x, y, brightness > threshold ? Color.White : Color.Black);
                 }
             }
 
-            // Шаг 3: Invert — для светлого текста на тёмном (стандарт для Tesseract: чёрный на белом)
+            // Шаг 3: Invert (без изменений)
             for (int y = 0; y < grayscale.Height; y++)
             {
                 for (int x = 0; x < grayscale.Width; x++)
@@ -67,7 +64,16 @@ namespace NMS_PotentialDetector.Services
                 }
             }
 
-            return grayscale;
+            // Новый Шаг 4: Upscale x3 для Tesseract (улучшает распознавание маленьких символов)
+            const float scaleFactor = 3.0f; // x3 — баланс: x2 мало, x4 тяжело для CPU
+            var resized = new Bitmap((int)(grayscale.Width * scaleFactor), (int)(grayscale.Height * scaleFactor));
+            using (var g = Graphics.FromImage(resized))
+            {
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Bilinear; // Сглаживание для anti-pixelation
+                g.DrawImage(grayscale, new Rectangle(0, 0, resized.Width, resized.Height), 0, 0, grayscale.Width, grayscale.Height, GraphicsUnit.Pixel);
+            }
+            grayscale.Dispose(); // Освобождаем старый
+            return resized;
         }
 
         public void Dispose() => _engine?.Dispose();
