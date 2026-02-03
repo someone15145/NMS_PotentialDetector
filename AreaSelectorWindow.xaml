@@ -1,0 +1,11 @@
+﻿<Window x:Class="NMS_PotentialDetector.AreaSelectorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Выбери область HUD" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" Width="{Binding Source={x:Static SystemParameters.PrimaryScreenWidth}}" 
+        Height="{Binding Source={x:Static SystemParameters.PrimaryScreenHeight}}" WindowState="Maximized">
+    <Canvas x:Name="SelectionCanvas" Background="#77777777" MouseLeftButtonDown="SelectionCanvas_MouseLeftButtonDown" 
+            MouseMove="SelectionCanvas_MouseMove" MouseLeftButtonUp="SelectionCanvas_MouseLeftButtonUp">
+        <Rectangle x:Name="SelectionRect" Fill="#33ff3377" Stroke="Red" StrokeThickness="2" StrokeDashArray="5,5"/>
+    </Canvas>
+</Window>
