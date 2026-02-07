@@ -2,7 +2,6 @@
 using CommunityToolkit.Mvvm.Input;
 using NMS_PotentialDetector.Models;
 using NMS_PotentialDetector.Services;
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -13,20 +12,19 @@ namespace NMS_PotentialDetector.ViewModels
 {
     public partial class MainViewModel : ObservableObject, IDisposable
     {
-        [ObservableProperty] private CaptureArea _captureArea = new() { X = 100, Y = 400, Width = 100, Height = 80 }; // Пример: подгони под скрин
+        [ObservableProperty] private CaptureArea _captureArea = new() { X = 100, Y = 400, Width = 100, Height = 120 }; // Увеличь Height для 4 рядов
         [ObservableProperty] private string _status = "Готов";
         [ObservableProperty] private BitmapImage? _previewImage;
         [ObservableProperty] private bool _isMonitoring;
 
         private readonly ScreenCaptureService _captureService = new();
-        private readonly OcrService _ocrService = new();
+        private readonly TemplateMatchingService _templateService = new();
         private readonly SoundService _soundService = new();
         private CancellationTokenSource? _cancellationTokenSource;
 
         [RelayCommand]
-        private void SelectArea()
+        private void SelectArea() // Оставляем как есть
         {
-            // Открываем оверлей для выбора области (см. ниже)
             var selectorWindow = new AreaSelectorWindow();
             if (selectorWindow.ShowDialog() == true)
             {
@@ -36,7 +34,7 @@ namespace NMS_PotentialDetector.ViewModels
         }
 
         [RelayCommand]
-        private async Task StartMonitoring()
+        private async Task StartMonitoring() // Оставляем
         {
             if (IsMonitoring) return;
             IsMonitoring = true;
@@ -46,7 +44,7 @@ namespace NMS_PotentialDetector.ViewModels
         }
 
         [RelayCommand]
-        private async Task StopMonitoring()
+        private async Task StopMonitoring() // Оставляем
         {
             IsMonitoring = false;
             _cancellationTokenSource?.Cancel();
@@ -60,18 +58,15 @@ namespace NMS_PotentialDetector.ViewModels
                 try
                 {
                     using var bitmap = _captureService.Capture(CaptureArea.ToRect());
-                    using var processed = _ocrService.Preprocess(bitmap); // Prep для OCR и preview
-                    UpdatePreview(processed); // Изменено: Показываем processed (debug визуально)
+                    UpdatePreview(bitmap); // Показываем оригинал для debug
 
-                    var text = _ocrService.Recognize(bitmap); // Уже с prep внутри Recognize
-                    Debug.WriteLine($"{DateTime.Now.Second}: {text}");
-                    if (text == "S")
+                    if (_templateService.IsSDetected(bitmap))
                     {
                         _soundService.PlayBeep();
                         Status = $"S обнаружен! ({DateTime.Now:HH:mm:ss})";
                     }
 
-                    await Task.Delay(500, cancellationToken);
+                    await Task.Delay(500, cancellationToken); // 500ms — баланс: не слишком часто для CPU
                 }
                 catch (Exception ex)
                 {
@@ -82,29 +77,33 @@ namespace NMS_PotentialDetector.ViewModels
 
         private void UpdatePreview(Bitmap bitmap)
         {
-            SaveForDebug(bitmap);
+            SaveForDebug(bitmap); // Сохраняем для анализа
 
-            var bi = bitmap.ToBitmapImage(); // Extension ниже
+            var bi = bitmap.ToBitmapImage();
             Application.Current.Dispatcher.Invoke(() => PreviewImage = bi);
         }
 
         private void SaveForDebug(Bitmap bitmap, string suffix = "")
         {
+            if (!Directory.Exists("debug"))
+                Directory.CreateDirectory("debug");
             bitmap.Save($"debug/{DateTime.Now:yyyyMMdd_HHmmss}{suffix}.png", ImageFormat.Png);
         }
 
-        public void Dispose() => _ocrService.Dispose();
+        public void Dispose()
+        {
+            _templateService.Dispose();
+        }
     }
 
-    // Extension для Bitmap -> WPF Image
-    public static class BitmapExtensions
+    public static class BitmapExtensions // Оставляем extension для удобства
     {
         public static BitmapImage ToBitmapImage(this Bitmap bitmap)
         {
             var bi = new BitmapImage();
             bi.BeginInit();
-            MemoryStream ms = new();
-            bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            using MemoryStream ms = new();
+            bitmap.Save(ms, ImageFormat.Png);
             ms.Seek(0, SeekOrigin.Begin);
             bi.StreamSource = ms;
             bi.EndInit();
@@ -112,6 +111,4 @@ namespace NMS_PotentialDetector.ViewModels
             return bi;
         }
     }
-
-
 }
