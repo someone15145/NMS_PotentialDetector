@@ -1,37 +1,24 @@
 ﻿using System.Drawing;
 using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
 using System.Windows;
 
-namespace NMS_PotentialDetector.Services
+namespace NMS_PotentialDetector.Services;
+
+/// <summary>
+/// Handles screen region capturing.
+/// </summary>
+public class ScreenCaptureService
 {
-    public class ScreenCaptureService
+    /// <summary>
+    /// Captures a specified screen area.
+    /// </summary>
+    public Bitmap Capture(Rect area)
     {
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetDC(IntPtr hWnd);
+        Bitmap bitmap = new((int)area.Width, (int)area.Height, PixelFormat.Format32bppArgb);
 
-        [DllImport("user32.dll")]
-        private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.CopyFromScreen((int)area.X, (int)area.Y, 0, 0, new System.Drawing.Size((int)area.Width, (int)area.Height));
 
-        [DllImport("gdi32.dll")]
-        private static extern bool BitBlt(IntPtr hdcDest, int nXDest, int nYDest, int nWidth, int nHeight,
-            IntPtr hdcSrc, int nXSrc, int nYSrc, int dwRop);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetWindowDC(IntPtr hWnd);
-
-        private const int Srccopy = 0x00CC0020;
-
-        public Bitmap Capture(Rect area)
-        {
-            var bitmap = new Bitmap((int)area.Width, (int)area.Height, PixelFormat.Format32bppArgb);
-            using var graphics = Graphics.FromImage(bitmap);
-            var dc1 = GetDC(IntPtr.Zero); // Весь экран
-            var dc2 = graphics.GetHdc();
-            BitBlt(dc2, 0, 0, (int)area.Width, (int)area.Height, dc1, (int)area.X, (int)area.Y, Srccopy);
-            graphics.ReleaseHdc(dc2);
-            ReleaseDC(IntPtr.Zero, dc1);
-            return bitmap;
-        }
+        return bitmap;
     }
 }

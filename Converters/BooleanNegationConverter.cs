@@ -1,26 +1,16 @@
 ﻿using System.Globalization;
-using System.Windows.Data; // Для IValueConverter
+using System.Windows.Data;
 
-namespace NMS_PotentialDetector.Converters
+namespace NMS_PotentialDetector.Converters;
+
+/// <summary>
+/// Inverts boolean values for WPF bindings.
+/// </summary>
+public class BooleanNegationConverter : IValueConverter
 {
-    public class BooleanNegationConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is bool boolValue)
-            {
-                return !boolValue; // Инверсия
-            }
-            return value; // Fallback: Вернуть как есть, если не bool
-        }
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is bool boolean ? !boolean : value;
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is bool boolValue)
-            {
-                return !boolValue; // Двусторонний, для two-way binding (если нужно)
-            }
-            return value;
-        }
-    }
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => Convert(value, targetType, parameter, culture);
 }
