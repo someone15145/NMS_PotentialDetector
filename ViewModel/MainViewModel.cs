@@ -12,15 +12,26 @@ namespace NMS_PotentialDetector.ViewModels
 {
     public partial class MainViewModel : ObservableObject, IDisposable
     {
-        [ObservableProperty] private CaptureArea _captureArea = new() { X = 100, Y = 400, Width = 100, Height = 120 }; // Увеличь Height для 4 рядов
+        [ObservableProperty] private CaptureArea _captureArea = new() { X = 390, Y = 645, Width = 50, Height = 60 }; // Положение индикатора
         [ObservableProperty] private string _status = "Готов";
         [ObservableProperty] private BitmapImage? _previewImage;
-        [ObservableProperty] private bool _isMonitoring;
+        [ObservableProperty] private bool _isMonitoring; 
+        [ObservableProperty] private bool _alwaysShowPreview = true;
+        [ObservableProperty] private BitmapImage? _templatePreviewImage; 
+        [ObservableProperty] private double _matchThreshold = 0.9;
+        [ObservableProperty] private double _currentMatchScore;   // 0.0 .. 1.0
 
         private readonly ScreenCaptureService _captureService = new();
         private readonly TemplateMatchingService _templateService = new();
         private readonly SoundService _soundService = new();
         private CancellationTokenSource? _cancellationTokenSource;
+        private CancellationTokenSource? _previewCts;
+        public MainViewModel()
+        {
+            LoadTemplatePreview();
+            if (AlwaysShowPreview)
+                StartPreviewLoop();
+        }
 
         [RelayCommand]
         private void SelectArea() // Оставляем как есть
@@ -53,18 +64,29 @@ namespace NMS_PotentialDetector.ViewModels
 
         private async Task MonitorLoopAsync(CancellationToken cancellationToken = default)
         {
-            while (!cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested || AlwaysShowPreview)
             {
                 try
                 {
                     using var bitmap = _captureService.Capture(CaptureArea.ToRect());
                     UpdatePreview(bitmap); // Показываем оригинал для debug
 
-                    if (_templateService.IsSDetected(bitmap))
+                    CurrentMatchScore = _templateService.GetMatchScore(bitmap);
+
+                    if (cancellationToken.IsCancellationRequested) continue;
+
+                    bool isDetected = _templateService.IsSDetected(bitmap, MatchThreshold);
+                    if (IsMonitoring && isDetected)
                     {
                         _soundService.PlayBeep();
-                        Status = $"S обнаружен! ({DateTime.Now:HH:mm:ss})";
+                        Status = $"S обнаружен! ({DateTime.Now:HH:mm:ss}) Соответствие: {CurrentMatchScore:P1}";
                     }
+                    else if (IsMonitoring)
+                    {
+                        Status = $"Мониторинг... Текущее соответствие: {CurrentMatchScore:P1}";
+                    }
+
+                    SaveForDebug(bitmap, isDetected); // Сохраняем для анализа
 
                     await Task.Delay(500, cancellationToken); // 500ms — баланс: не слишком часто для CPU
                 }
@@ -77,37 +99,89 @@ namespace NMS_PotentialDetector.ViewModels
 
         private void UpdatePreview(Bitmap bitmap)
         {
-            SaveForDebug(bitmap); // Сохраняем для анализа
-
             var bi = bitmap.ToBitmapImage();
             Application.Current.Dispatcher.Invoke(() => PreviewImage = bi);
         }
 
-        private void SaveForDebug(Bitmap bitmap, string suffix = "")
+        private void SaveForDebug(Bitmap bitmap, bool isDetected)
         {
-            if (!Directory.Exists("debug"))
-                Directory.CreateDirectory("debug");
-            bitmap.Save($"debug/{DateTime.Now:yyyyMMdd_HHmmss}{suffix}.png", ImageFormat.Png);
+            string folder = isDetected ? "_detected" : "_noDetected";
+            if (!Directory.Exists(folder))
+                Directory.CreateDirectory(folder);
+            bitmap.Save($"{folder}/{DateTime.Now:yyyyMMdd_HHmmss}.png", ImageFormat.Png);
+        }
+        private void LoadTemplatePreview()
+        {
+            const string fullSPath = "templates/full_s_pattern.png";
+            if (File.Exists(fullSPath))
+            {
+                using var bitmap = new Bitmap(fullSPath);
+                TemplatePreviewImage = bitmap.ToBitmapImage();
+            }
+        }
+
+        private async Task PreviewLoopAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    using var bitmap = _captureService.Capture(CaptureArea.ToRect());
+                    UpdatePreview(bitmap);
+                    await Task.Delay(500, cancellationToken);
+                }
+                catch { }
+            }
+        }
+
+        private void StartPreviewLoop()
+        {
+            if (_previewCts != null) return;
+            _previewCts = new CancellationTokenSource();
+            _ = Task.Run(() => PreviewLoopAsync(_previewCts.Token));
+        }
+
+        private void StopPreviewLoop()
+        {
+            _previewCts?.Cancel();
+            _previewCts = null;
+        }
+        partial void OnAlwaysShowPreviewChanged(bool value)
+        {
+            if (value && !IsMonitoring)
+                StartPreviewLoop();
+            else if (!value && !IsMonitoring)
+                StopPreviewLoop();
+        }
+
+        partial void OnIsMonitoringChanged(bool oldValue, bool newValue)
+        {
+            if (newValue)
+                StopPreviewLoop();           // чтобы не было двух потоков превью
+            else if (AlwaysShowPreview)
+                StartPreviewLoop();
         }
 
         public void Dispose()
         {
-            _templateService.Dispose();
+            _templateService.Dispose(); 
+            StopPreviewLoop();
         }
     }
 
-    public static class BitmapExtensions // Оставляем extension для удобства
+    public static class BitmapExtensions // Extension для удобства
     {
         public static BitmapImage ToBitmapImage(this Bitmap bitmap)
         {
             var bi = new BitmapImage();
             bi.BeginInit();
+            bi.CacheOption = BitmapCacheOption.OnLoad; // Фикс: Загружает data сразу, перед dispose stream
             using MemoryStream ms = new();
             bitmap.Save(ms, ImageFormat.Png);
             ms.Seek(0, SeekOrigin.Begin);
             bi.StreamSource = ms;
             bi.EndInit();
-            bi.Freeze();
+            bi.Freeze(); // Для thread-safety
             return bi;
         }
     }

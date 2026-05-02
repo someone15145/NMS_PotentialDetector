@@ -1,4 +1,5 @@
 ﻿using OpenCvSharp; // Mat, Cv2 (vision API)
+using System.Diagnostics;
 using System.Drawing; // Bitmap
 using System.IO; // File
 
@@ -23,17 +24,26 @@ namespace NMS_PotentialDetector.Services
             _fullSTemplate = Cv2.ImRead(fullSPath, ImreadModes.Grayscale); // Grayscale для matching
         }
 
-        public bool IsSDetected(Bitmap capturedBitmap)
+        public bool IsSDetected(Bitmap capturedBitmap, double threshold = 0.9)
         {
-            using var srcMat = OpenCvSharp.Extensions.BitmapConverter.ToMat(capturedBitmap); // Bitmap → Mat
+            using var srcMat = OpenCvSharp.Extensions.BitmapConverter.ToMat(capturedBitmap);
             using var gray = new Mat();
-            Cv2.CvtColor(srcMat, gray, ColorConversionCodes.BGRA2GRAY); // Grayscale
-
+            Cv2.CvtColor(srcMat, gray, ColorConversionCodes.BGRA2GRAY);
             using var binary = new Mat();
-            Cv2.Threshold(gray, binary, 100, 255, ThresholdTypes.Binary); // Бинаризация, подгони threshold
+            Cv2.Threshold(gray, binary, 100, 255, ThresholdTypes.Binary);
 
             double matchScore = MatchTemplate(binary, _fullSTemplate);
-            return matchScore > 0.9; // Порог — тестируй на реальных скринах
+            return matchScore > threshold;
+        }
+        public double GetMatchScore(Bitmap capturedBitmap)
+        {
+            using var srcMat = OpenCvSharp.Extensions.BitmapConverter.ToMat(capturedBitmap);
+            using var gray = new Mat();
+            Cv2.CvtColor(srcMat, gray, ColorConversionCodes.BGRA2GRAY);
+            using var binary = new Mat();
+            Cv2.Threshold(gray, binary, 100, 255, ThresholdTypes.Binary);
+
+            return MatchTemplate(binary, _fullSTemplate);
         }
 
         private double MatchTemplate(Mat source, Mat template)

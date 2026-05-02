@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:NMS_PotentialDetector.ViewModels"
         xmlns:conv="clr-namespace:NMS_PotentialDetector.Converters"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="MainWindow" Height="600" Width="800">
     <Window.DataContext>
         <local:MainViewModel/>
     </Window.DataContext>
@@ -16,7 +16,8 @@
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -25,7 +26,29 @@
         <TextBlock Grid.Row="0" Text="{Binding Status}" FontSize="18" HorizontalAlignment="Center"/>
 
         <!-- Preview -->
-        <Image Grid.Row="1" Source="{Binding PreviewImage}" Stretch="Uniform" MaxHeight="300"/>
+        <Grid Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="300"/>
+                <ColumnDefinition Width="20"/>
+                <ColumnDefinition Width="*" MinWidth="300"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Левое превью: область захвата -->
+            <StackPanel Grid.Column="0" Grid.Row="0" HorizontalAlignment="Center">
+                <TextBlock Text="Превью отслеживаемой области" FontSize="14" HorizontalAlignment="Center"/>
+                <Image Source="{Binding PreviewImage}" Stretch="Uniform" MaxHeight="280" MaxWidth="380"/>
+            </StackPanel>
+
+            <!-- Правое превью: шаблон -->
+            <StackPanel Grid.Column="2" Grid.Row="0" HorizontalAlignment="Center">
+                <TextBlock Text="Шаблон (с которым сравнивается)" FontSize="14" HorizontalAlignment="Center"/>
+                <Image Source="{Binding TemplatePreviewImage}" Stretch="Uniform" MaxHeight="280" MaxWidth="380"/>
+            </StackPanel>
+        </Grid>
 
         <!-- Координаты -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
@@ -42,8 +65,24 @@
         <!-- Кнопки -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20">
             <Button Content="Выбрать область" Command="{Binding SelectAreaCommand}" Margin="10"/>
-            <Button Content="Старт" Command="{Binding StartMonitoringCommand}" IsEnabled="{Binding IsMonitoring, Converter={StaticResource BoolNegate}}" Margin="10"/>
-            <Button Content="Стоп" Command="{Binding StopMonitoringCommand}" IsEnabled="{Binding IsMonitoring}"/>
+            <Button Content="Старт" Command="{Binding StartMonitoringCommand}" 
+            IsEnabled="{Binding IsMonitoring, Converter={StaticResource BoolNegate}}" Margin="10"/>
+            <Button Content="Стоп" Command="{Binding StopMonitoringCommand}" 
+            IsEnabled="{Binding IsMonitoring}" Margin="10"/>
+            <CheckBox Content="Показывать превью всегда" IsChecked="{Binding AlwaysShowPreview}" 
+              Margin="10" VerticalAlignment="Center" FontSize="14"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="4" Orientation="Vertical" HorizontalAlignment="Center" Margin="0,10">
+            <TextBlock Text="{Binding CurrentMatchScore, StringFormat='Текущее соответствие: {0:P1}'}" 
+               FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
+
+            <TextBlock Text="{Binding MatchThreshold, StringFormat='Порог: {0:P1}'}" 
+               FontSize="14" HorizontalAlignment="Center" Margin="0,5"/>
+
+            <Slider Minimum="0.5" Maximum="1.0" Value="{Binding MatchThreshold}" 
+            TickFrequency="0.01" IsSnapToTickEnabled="True" Width="300"
+            Margin="0,5"/>
         </StackPanel>
     </Grid>
 </Window>

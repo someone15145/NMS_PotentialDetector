@@ -43,6 +43,11 @@ namespace NMS_PotentialDetector
             SelectionCanvas.ReleaseMouseCapture();
 
             var endPoint = e.GetPosition(SelectionCanvas);
+
+            // Выделенная область почему-то смещается
+            endPoint.X -= 8;
+            endPoint.Y -= 8;
+
             SelectedArea = new CaptureArea
             {
                 X = Math.Min(_startPoint.X, endPoint.X),
